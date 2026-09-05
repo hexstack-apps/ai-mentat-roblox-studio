@@ -6,33 +6,40 @@ const os = require('os');
 const net = require('net');
 const PLAT = require('./lib/platform');
 const SKILLS = require('./lib/skills');
-const PROJECTS = require('./lib/projects');
-const { quiet, attempt } = require('./sdk/utils/failsafe');
-const { shellEnv: sdkShellEnv, run, tryRun } = require('./sdk/utils/env');
-const { killProcess, createCleanup } = require('./sdk/utils/proc');
-const { createSettingsStore } = require('./sdk/logic/settings');
-const { registerOpenExternal, openPathHandler } = require('./sdk/logic/shell');
-const { registerPtyIpc, resolveHelperPath } = require('./sdk/logic/pty');
-const { detectMcpInstalled, removeAllScopes } = require('./sdk/logic/mcp');
-const { createWindow: createWindow_ } = require('./sdk/ui/window');
+const STORE = require('./lib/settings');
 const { setupAutoUpdate } = require('./sdk/logic/auto-update');
 
 function shellEnv() {
-  return sdkShellEnv({ home: os.homedir() });
+  // PATH construction lives in lib/platform.js so it can be unit tested; a
+  // GUI-launched app inherits a minimal PATH without Homebrew/.local/.bun.
+  return { ...process.env, PATH: PLAT.buildPath(process.platform, os.homedir(), process.env.PATH) };
 }
 
-/** Kept for the call sites that still pass a composed command string. */
 function execSyncEnv(cmd, opts = {}) {
   return execSync(cmd, { ...opts, env: { ...shellEnv(), ...opts.env } });
 }
 
+let mainWindow;
+let rojoProcess;
+let ptyProcess;
+let cleanupDone = false;
+
+// Data lives at <filesystem root>/.hexstack-app/<app-name>/data for every
+// build type, dev and packaged alike, so there is one location to inspect.
+// resolveDataDir falls back to ~/.hexstack-app/<app>/data when the root is
+// not user-writable (see sdk/utils/data-dir.js).
+const { resolveDataDir } = require('./sdk/utils/data-dir');
+const dataDir = resolveDataDir("ai-mentat-roblox-studio");
+
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+
 // ─── Settings ──────────────────────────────────────────────────────────────
 
-const settings = createSettingsStore({ dir: dataDir });
-// normalise(): the SDK store returns raw JSON, and this app assumes
-// settings.projects is always an array — see lib/projects.js.
-const loadSettings = () => PROJECTS.normalise(settings.load());
-const saveSettings = (patch) => settings.save(patch);
+const SETTINGS_FILE = path.join(dataDir, 'settings.json');
+
+function loadSettings() { return STORE.loadSettings(SETTINGS_FILE); }
+
+function saveSettings(data) { return STORE.saveSettings(SETTINGS_FILE, data); }
 
 // ─── Logs ──────────────────────────────────────────────────────────────────
 //
@@ -66,18 +73,21 @@ function appendRojoLog(text) {
 // ─── Window ────────────────────────────────────────────────────────────────
 
 function createWindow() {
-  mainWindow = createWindow_({
-    BrowserWindow,
-    width: 1100,
-    height: 750,
-    title: 'Roblox Studio Mentat',
+  mainWindow = new BrowserWindow({
+    width: 1100, height: 750, title: 'Roblox Studio Mentat',
     icon: path.join(__dirname, 'icon.png'),
-    preload: path.join(__dirname, 'preload.js'),
-    load: { file: path.join(__dirname, 'app.html') },
-    onReady: (win) => setupAutoUpdate(win),
+    webPreferences: {
+      nodeIntegration: false, contextIsolation: true, sandbox: false,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+    show: false,
   });
   mainWindow.on('closed', () => cleanup());
-  mainWindow.webContents.on('did-fail-load', (_, code, desc) => console.error('Load failed:', desc));
+  mainWindow.loadFile(path.join(__dirname, 'app.html'));
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    if (!app.isPackaged) mainWindow.webContents.openDevTools();
+  });
 }
 
 // ─── Cleanup ───────────────────────────────────────────────────────────────
@@ -98,15 +108,17 @@ function killProc(proc, name) {
   setTimeout(() => { try { if (!proc.killed) proc.kill('SIGKILL'); } catch {} }, 3000);
 }
 
-const cleanup = createCleanup(() => {
+function cleanup() {
+  if (cleanupDone) return;
+  cleanupDone = true;
   killProc(rojoProcess, 'rojo');
   if (ptyProcess) { try { ptyProcess.kill(); } catch {} ptyProcess = null; }
   setTimeout(() => app.quit(), 500);
-});
+}
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function getActiveProjectPath() { return PROJECTS.activeProjectPath(loadSettings()); }
+function getActiveProjectPath() { return STORE.activeProjectPath(loadSettings()); }
 
 function pluginDir() {
   return PLAT.pluginDir(process.platform, os.homedir(), process.env);
@@ -584,16 +596,40 @@ ipcMain.handle('plugin:install', async () => {
 
 // ─── IPC: PTY ──────────────────────────────────────────────────────────────
 
-const localClaude = path.join(os.homedir(), '.local', 'bin', 'claude');
-registerPtyIpc(ipcMain, {
-  getWindow: () => mainWindow,
-  command: fs.existsSync(localClaude) ? localClaude : 'claude',
-  args: ['/mentat-rbxs'],
-  cwd: os.homedir(),
-  env: { ...shellEnv(), TERM: 'xterm-256color' },
-  helperPath: resolveHelperPath(path.join(__dirname, 'sdk', 'utils'), { isPackaged: app.isPackaged }),
-  deps: { spawn },
+ipcMain.handle('pty:spawn', async (_, cols, rows, skipPerms) => {
+  try {
+    ensureMcpRegistered();
+    if (ptyProcess) { try { ptyProcess.kill(); } catch {} ptyProcess = null; }
+    const home = os.homedir();
+    const projPath = getActiveProjectPath() || home;
+    const env = { ...shellEnv(), TERM: 'xterm-256color', COLUMNS: String(cols || 80), LINES: String(rows || 24) };
+
+    const claudeArgs = skipPerms
+      ? ['--dangerously-skip-permissions', '/mentat-rbxs']
+      : ['/mentat-rbxs'];
+    if (process.platform === 'win32') {
+      ptyProcess = spawn('cmd.exe', ['/c', 'claude', ...claudeArgs], { stdio: ['pipe', 'pipe', 'pipe'], cwd: projPath, env });
+    } else {
+      const claudeBin = path.join(home, '.local', 'bin', 'claude');
+      const bin = fs.existsSync(claudeBin) ? claudeBin : 'claude';
+      let helperPath = path.join(__dirname, 'pty-helper.py');
+      if (app.isPackaged) helperPath = helperPath.replace('app.asar', 'app.asar.unpacked');
+      ptyProcess = spawn('python3', [helperPath, bin, ...claudeArgs], { stdio: ['pipe', 'pipe', 'pipe'], cwd: projPath, env });
+      ptyProcess.on('error', (e) => console.error('PTY spawn error:', e.message));
+    }
+
+    ptyProcess.stdout.on('data', (d) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pty:data', d.toString()); });
+    ptyProcess.stderr.on('data', (d) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pty:data', d.toString()); });
+    ptyProcess.on('exit', () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pty:exit'); ptyProcess = null; });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
+
+ipcMain.on('pty:write', (_, data) => { if (ptyProcess && !ptyProcess.killed) ptyProcess.stdin.write(data); });
+ipcMain.on('pty:resize', (_, cols, rows) => { if (ptyProcess?.pid && process.platform !== 'win32') try { process.kill(ptyProcess.pid, 'SIGWINCH'); } catch {} });
+ipcMain.on('pty:kill', () => { if (ptyProcess) { if (process.platform !== 'win32') try { process.kill(-ptyProcess.pid, 'SIGTERM'); } catch {} try { ptyProcess.kill(); } catch {} ptyProcess = null; } });
 
 // ─── IPC: Shell ────────────────────────────────────────────────────────────
 

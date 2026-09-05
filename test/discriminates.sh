@@ -63,19 +63,24 @@ mutate "win32 mcp path reverts to the unexpanded %LOCALAPPDATA%" lib/platform.js
   "return { command: 'cmd.exe', args: ['/c', path.join(local, 'Roblox', 'mcp.bat')] };" \
   "return { command: 'cmd.exe', args: ['/c', '%LOCALAPPDATA%\\\\Roblox\\\\mcp.bat'] };"
 
-mutate "normalise stops supplying a projects array (five .find() crashes)" lib/projects.js \
-  "    projects: Array.isArray(raw.projects) ? raw.projects : []," \
-  "    projects: raw.projects,"
+mutate "loadSettings stops normalising a missing projects array" lib/settings.js \
+  "      projects: Array.isArray(raw.projects) ? raw.projects : []," \
+  "      projects: raw.projects,"
 
-mutate "removeProject leaves a dangling activeProject" lib/projects.js \
+mutate "saveSettings writes in place (non-atomic)" lib/settings.js \
+  "  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.renameSync(tmp, file);" \
+  "  fs.writeFileSync(file, JSON.stringify(data, null, 2));"
+
+mutate "removeProject leaves a dangling activeProject" lib/settings.js \
   "  const activeProject = settings.activeProject === name ? null : settings.activeProject;" \
   "  const activeProject = settings.activeProject;"
 
-mutate "addProject mutates its input" lib/projects.js \
+mutate "addProject mutates its input" lib/settings.js \
   "  const s = { projects: [...(settings.projects || [])], activeProject: settings.activeProject };" \
   "  const s = settings;"
 
-mutate "selectProject accepts unknown names" lib/projects.js \
+mutate "selectProject accepts unknown names" lib/settings.js \
   "  return exists
     ? { projects: settings.projects, activeProject: name }" \
   "  return true
