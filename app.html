@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roblox Studio Mentat</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="#" class="top-bar__logo" onclick="event.preventDefault(); window.electronAPI.openExternal('https://hexstack.app')">hexstack.app</a>
+  <div class="top-bar__spacer"></div>
+</div>
+
+<div class="tab-bar">
+  <button class="active" data-tab="projects">Projects</button>
+  <button data-tab="setup">Setup</button>
+  <button data-tab="faq">FAQ</button>
+</div>
+
+<div class="tab-content">
+  <!-- Tab 1: Projects -->
+  <div id="tab-projects" class="panel active">
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        Projects
+        <button class="btn small" onclick="showNewProject()">+ New</button>
+      </div>
+      <div id="project-list"></div>
+    </div>
+    <div class="main-area" id="main-area">
+      <div id="no-project" class="empty-state">
+        <h3>No project selected</h3>
+        <p>Create or select a project from the sidebar</p>
+      </div>
+      <div id="project-view" style="display:none">
+        <h2 class="section-title" id="project-name"></h2>
+        <div class="card">
+          <h3><span id="studio-dot" class="status-dot"></span> Roblox Studio</h3>
+          <div class="row">
+            <button class="btn" id="studio-launch-btn" onclick="studioLaunch()">Launch Studio</button>
+            <span id="studio-status-text" style="font-size:12px;color:#888"></span>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span id="rojo-dot" class="status-dot"></span> Rojo</h3>
+          <div class="row">
+            <button class="btn" id="rojo-start-btn" onclick="rojoStart()">Start Rojo</button>
+            <button class="btn danger" id="rojo-stop-btn" onclick="rojoStop()" style="display:none">Stop Rojo</button>
+            <button class="btn secondary" onclick="openProjectFolder()">Open Folder</button>
+          </div>
+          <div id="rojo-msg" class="msg"></div>
+        </div>
+        <div class="card">
+          <h3>Claude Code</h3>
+          <p style="font-size:12px;color:#888;margin-bottom:10px">Opens Claude Code in the project directory with <code style="background:#1a1a2e;padding:2px 6px;border-radius:4px;font-size:12px;color:#00b4d8">/mentat-rbxs</code> — reads project context, checks MCP, and gets ready to build</p>
+          <div id="studio-warning" class="msg error" style="display:none;margin-bottom:10px">Roblox Studio is not running — MCP tools won't be available. Launch Studio first and enable MCP.</div>
+          <div class="row">
+            <button class="btn" onclick="openClaude()">Open Claude Code</button>
+            <label style="min-width:auto;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="skip-perms" style="accent-color:#00b4d8"> Skip permissions</label>
+          </div>
+        </div>
+      </div>
+      <div id="new-project-view" style="display:none">
+        <h2 class="section-title">New Project</h2>
+        <div class="card">
+          <div class="row">
+            <label>Name</label>
+            <input type="text" id="new-name" placeholder="My Game">
+          </div>
+          <div class="row">
+            <label>Folder</label>
+            <input type="text" id="new-path" placeholder="Select a folder..." readonly>
+            <button class="btn secondary small" onclick="browseFolder()">Browse</button>
+          </div>
+          <div class="row" style="margin-top:14px">
+            <button class="btn" onclick="createProject()">Create Project</button>
+            <button class="btn secondary" onclick="cancelNewProject()">Cancel</button>
+          </div>
+          <div id="new-project-msg" class="msg"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="terminal-overlay" class="terminal-overlay">
+      <div class="terminal-popup">
+        <div class="terminal-header">
+          <span>Claude Code</span>
+          <button class="terminal-close" onclick="closeClaude()">&times;</button>
+        </div>
+        <div id="terminal-container" class="terminal-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2: Setup -->
+  <div id="tab-setup" class="panel">
+    <div class="panel-scroll">
+      <h2 class="section-title">Environment Setup</h2>
+
+      <div class="card">
+        <h3><span id="rojo-check-dot" class="status-dot"></span> Rojo</h3>
+        <p style="font-size:12px;color:#888;margin-bottom:10px">Rojo syncs files between your editor and Roblox Studio</p>
+        <div class="row">
+          <button class="btn" id="rojo-install-btn" onclick="rojoInstall()">Install Rojo</button>
+        </div>
+        <div id="rojo-install-msg" class="msg"></div>
+      </div>
+
+      <div class="card">
+        <h3><span id="plugin-dot" class="status-dot"></span> Roblox Studio Plugin</h3>
+        <p style="font-size:12px;color:#888;margin-bottom:10px">Connects Roblox Studio to Rojo for live sync</p>
+        <div class="row">
+          <button class="btn" id="plugin-btn" onclick="pluginInstall()">Install Plugin</button>
+        </div>
+        <div id="plugin-msg" class="msg"></div>
+      </div>
+
+      <div class="card">
+        <h3><span id="mcp-dot" class="status-dot"></span> Roblox Studio MCP Server</h3>
+        <p style="font-size:12px;color:#888;margin-bottom:10px">Built into Roblox Studio. Lets Claude Code read/write scripts, explore the data model, run Luau code, and control playtesting.</p>
+        <p style="font-size:12px;color:#888;margin-bottom:10px"><strong>Prerequisites:</strong> Enable MCP in Studio: Assistant > ... > Manage MCP Servers > Enable Studio as MCP server. <a href="#" onclick="window.electronAPI.openExternal('https://create.roblox.com/docs/studio/mcp'); return false" style="color:#00b4d8">Docs</a></p>
+        <div id="mcp-binary-msg" class="msg" style="margin-bottom:8px"></div>
+        <div class="row">
+          <button class="btn" id="mcp-install-btn" onclick="mcpInstall()">Register MCP in Claude Code</button>
+          <button class="btn danger" id="mcp-uninstall-btn" onclick="mcpUninstall()" style="display:none">Unregister</button>
+        </div>
+        <div id="mcp-msg" class="msg"></div>
+      </div>
+
+      <div class="card">
+        <h3><span id="skills-dot" class="status-dot"></span> Roblox Agent Skills</h3>
+        <p style="font-size:12px;color:#888;margin-bottom:10px">Roblox and Luau expertise for Claude Code &mdash; current-API guidance on DataStores, networking, physics, GUI, monetization and Luau typing. Installed to <code>~/.claude/skills</code> and indexed in the <code>/mentat-rbxs</code> command.</p>
+        <div class="row">
+          <button class="btn" id="skills-install-btn" onclick="skillsInstall()">Install skills</button>
+        </div>
+        <div id="skills-msg" class="msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: FAQ -->
+  <div id="tab-faq" class="panel">
+    <div class="panel-scroll">
+      <h2 class="section-title">Frequently Asked Questions</h2>
+
+      <details class="faq-item">
+        <summary>Getting started</summary>
+        <div class="faq-body">
+          <p><strong>1. Install prerequisites</strong></p>
+          <p>Go to the <strong>Setup</strong> tab and install Rojo, the Roblox Studio Plugin, and the MCP Server.</p>
+          <p><strong>2. Create a project</strong></p>
+          <p>Go to <strong>Projects</strong>, click <strong>+ New</strong>, choose a name and folder. The app creates a Rojo project with <code>src/</code> directories and a <code>CLAUDE.md</code> context file.</p>
+          <p><strong>3. Start developing</strong></p>
+          <ol>
+            <li>Select your project from the sidebar</li>
+            <li>Click <strong>Start Rojo</strong> to enable live sync with Studio</li>
+            <li>Click <strong>Open Claude Code</strong> to start building with AI</li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>What is Rojo?</summary>
+        <div class="faq-body">
+          <p>Rojo syncs Lua/Luau files from your filesystem into Roblox Studio in real-time. Instead of editing scripts inside Studio, you edit them in your preferred editor (or via Claude Code), and Rojo pushes changes automatically.</p>
+          <p>Install: <code>cargo install rojo</code> or download from <a href="#" onclick="window.electronAPI.openExternal('https://rojo.space'); return false">rojo.space</a></p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Project structure</summary>
+        <div class="faq-body">
+          <p>Each project is a standard Rojo layout:</p>
+          <pre style="background:#1a1a2e;padding:12px;border-radius:6px;font-size:12px;color:#aaa;margin:8px 0">src/
+  ServerScriptService/
+  ReplicatedStorage/
+  StarterPlayer/
+default.project.json
+CLAUDE.md</pre>
+          <p>Edit Lua scripts inside <code>src/</code>. Rojo syncs them to Roblox Studio. <code>CLAUDE.md</code> gives Claude Code context about your project.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>How does Claude Code control Roblox Studio?</summary>
+        <div class="faq-body">
+          <p>Via the <strong>MCP Server</strong> (Model Context Protocol). Once installed from the Setup tab, Claude Code can:</p>
+          <ul>
+            <li>Create and modify scripts in Studio</li>
+            <li>Insert models and instances</li>
+            <li>Run code inside Studio</li>
+            <li>Control play mode</li>
+            <li>Read the project structure</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<link rel="stylesheet" href="vendor/xterm.css">
+<script src="vendor/xterm.js"></script>
+<script src="vendor/addon-fit.js"></script>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-bar button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Helpers
+  function setDot(id, c) { document.getElementById(id).className = 'status-dot ' + c; }
+  function setMsg(id, t, c) { const e = document.getElementById(id); e.textContent = t; e.className = 'msg ' + (c||''); }
+  function toggle(s, h) { document.getElementById(s).style.display = ''; document.getElementById(h).style.display = 'none'; }
+
+  // ─── Projects ─────────────────────────────────────────────────────────
+
+  let currentProject = null;
+
+  async function loadProjects() {
+    const s = await window.electronAPI.getProjects();
+    const list = document.getElementById('project-list');
+    list.innerHTML = '';
+    for (const p of s.projects) {
+      const el = document.createElement('div');
+      el.className = 'sidebar-item' + (p.name === s.activeProject ? ' active' : '');
+      el.innerHTML = `<span>${p.name}</span><span class="remove" onclick="event.stopPropagation();removeProject('${p.name}')">&times;</span>`;
+      el.onclick = () => selectProject(p.name);
+      list.appendChild(el);
+    }
+    if (s.activeProject) {
+      currentProject = s.projects.find(p => p.name === s.activeProject);
+      showProject();
+    } else {
+      currentProject = null;
+      document.getElementById('no-project').style.display = '';
+      document.getElementById('project-view').style.display = 'none';
+      document.getElementById('new-project-view').style.display = 'none';
+    }
+  }
+
+  async function selectProject(name) {
+    await window.electronAPI.selectProject(name);
+    loadProjects();
+  }
+
+  async function removeProject(name) {
+    await window.electronAPI.removeProject(name);
+    loadProjects();
+  }
+
+  function showProject() {
+    if (!currentProject) return;
+    document.getElementById('no-project').style.display = 'none';
+    document.getElementById('new-project-view').style.display = 'none';
+    document.getElementById('project-view').style.display = '';
+    document.getElementById('project-name').textContent = currentProject.name;
+    refreshRojoStatus();
+    refreshStudioStatus();
+  }
+
+  async function refreshStudioStatus() {
+    const s = await window.electronAPI.studioStatus();
+    setDot('studio-dot', s.running ? 'green' : 'red');
+    document.getElementById('studio-status-text').textContent = s.running ? 'Running' : 'Not running';
+    document.getElementById('studio-launch-btn').textContent = s.running ? 'Running' : 'Launch Studio';
+    document.getElementById('studio-warning').style.display = s.running ? 'none' : '';
+  }
+
+  async function studioLaunch() {
+    await window.electronAPI.studioLaunch();
+    document.getElementById('studio-status-text').textContent = 'Launching...';
+    setDot('studio-dot', 'amber');
+    // Poll until Studio is running
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const s = await window.electronAPI.studioStatus();
+      if (s.running) { refreshStudioStatus(); return; }
+    }
+    refreshStudioStatus();
+  }
+
+  function showNewProject() {
+    document.getElementById('no-project').style.display = 'none';
+    document.getElementById('project-view').style.display = 'none';
+    document.getElementById('new-project-view').style.display = '';
+    document.getElementById('new-name').value = '';
+    document.getElementById('new-path').value = '';
+    setMsg('new-project-msg', '', '');
+  }
+
+  function cancelNewProject() {
+    document.getElementById('new-project-view').style.display = 'none';
+    if (currentProject) showProject(); else document.getElementById('no-project').style.display = '';
+  }
+
+  async function browseFolder() {
+    const p = await window.electronAPI.selectFolder();
+    if (p) document.getElementById('new-path').value = p;
+  }
+
+  async function createProject() {
+    const name = document.getElementById('new-name').value.trim();
+    const projPath = document.getElementById('new-path').value.trim();
+    if (!name || !projPath) { setMsg('new-project-msg', 'Name and folder are required', 'error'); return; }
+    setMsg('new-project-msg', 'Creating project...', '');
+    const r = await window.electronAPI.initProject(name, projPath);
+    if (r.success) { loadProjects(); }
+    else { setMsg('new-project-msg', r.error || 'Failed', 'error'); }
+  }
+
+  async function openProjectFolder() {
+    if (currentProject?.path) window.electronAPI.openFolder(currentProject.path);
+  }
+
+  // ─── Rojo ─────────────────────────────────────────────────────────────
+
+  async function refreshRojoStatus() {
+    const r = await window.electronAPI.rojoStatus();
+    setDot('rojo-dot', r.running ? 'green' : 'red');
+    // A server on the port that this app did not start (left over from a
+    // previous run, or launched in a terminal) is running but not ours to stop.
+    if (r.external) {
+      setMsg('rojo-msg', `Running on port ${r.port} — started outside this app, so Stop is unavailable.`, '');
+      const stopBtn = document.getElementById('rojo-stop-btn');
+      if (stopBtn) stopBtn.disabled = true;
+    } else {
+      const stopBtn = document.getElementById('rojo-stop-btn');
+      if (stopBtn) stopBtn.disabled = false;
+    }
+    if (r.running) toggle('rojo-stop-btn', 'rojo-start-btn');
+    else toggle('rojo-start-btn', 'rojo-stop-btn');
+  }
+
+  async function rojoStart() {
+    const btn = document.getElementById('rojo-start-btn');
+    btn.disabled = true; setDot('rojo-dot', 'amber'); setMsg('rojo-msg', 'Starting...', '');
+    const r = await window.electronAPI.rojoStart();
+    if (r.success) {
+      setDot('rojo-dot', 'green');
+      setMsg('rojo-msg', r.note || `Running on port ${r.port || 34872}`, 'success');
+      toggle('rojo-stop-btn', 'rojo-start-btn');
+    }
+    else { setDot('rojo-dot', 'red'); setMsg('rojo-msg', r.error || 'Failed', 'error'); btn.disabled = false; }
+  }
+
+  async function rojoStop() {
+    await window.electronAPI.rojoStop();
+    setDot('rojo-dot', 'red'); setMsg('rojo-msg', '', '');
+    toggle('rojo-start-btn', 'rojo-stop-btn');
+    document.getElementById('rojo-start-btn').disabled = false;
+  }
+
+  // ─── Setup tab ────────────────────────────────────────────────────────
+
+  async function loadSetupStatus() {
+    const rojo = await window.electronAPI.rojoCheck();
+    setDot('rojo-check-dot', rojo.installed ? 'green' : 'red');
+    if (rojo.installed) document.getElementById('rojo-install-btn').textContent = 'Installed';
+
+    const plugin = await window.electronAPI.pluginStatus();
+    setDot('plugin-dot', plugin.installed ? 'green' : 'red');
+    if (plugin.installed) document.getElementById('plugin-btn').textContent = 'Installed';
+
+    const mcp = await window.electronAPI.mcpStatus();
+    setDot('mcp-dot', mcp.installed ? 'green' : 'red');
+    if (mcp.installed) toggle('mcp-uninstall-btn', 'mcp-install-btn');
+    else toggle('mcp-install-btn', 'mcp-uninstall-btn');
+    const skills = await window.electronAPI.skillsStatus();
+    setDot('skills-dot', skills.installed ? 'green' : (skills.present > 0 ? 'amber' : 'red'));
+    if (skills.installed) {
+      document.getElementById('skills-install-btn').textContent = 'Reinstall skills';
+      setMsg('skills-msg', skills.present + ' skills installed', 'success');
+    } else if (skills.present > 0) {
+      // Partial: some ours, some missing. Naming the numbers beats "not installed".
+      setMsg('skills-msg', skills.present + ' of ' + skills.vendored + ' installed \u2014 reinstall to repair', '');
+    } else {
+      setMsg('skills-msg', skills.vendored + ' skills available', '');
+    }
+
+    const binaryEl = document.getElementById('mcp-binary-msg');
+    if (mcp.binaryAvailable) { binaryEl.textContent = 'StudioMCP binary found'; binaryEl.className = 'msg success'; }
+    else { binaryEl.textContent = 'StudioMCP binary not found — install latest Roblox Studio and enable MCP'; binaryEl.className = 'msg error'; }
+  }
+
+  async function rojoInstall() {
+    const btn = document.getElementById('rojo-install-btn');
+    btn.disabled = true; setDot('rojo-check-dot', 'amber'); setMsg('rojo-install-msg', 'Installing via cargo...', '');
+    try {
+      // Rojo installs via cargo (Rust)
+      setMsg('rojo-install-msg', 'Run: cargo install rojo', '');
+    } catch {}
+    btn.disabled = false;
+  }
+
+  async function pluginInstall() {
+    const btn = document.getElementById('plugin-btn');
+    btn.disabled = true; setDot('plugin-dot', 'amber'); setMsg('plugin-msg', 'Installing...', '');
+    const r = await window.electronAPI.pluginInstall();
+    if (r.success) { setDot('plugin-dot', 'green'); setMsg('plugin-msg', 'Installed', 'success'); btn.textContent = 'Installed'; }
+    else { setDot('plugin-dot', 'red'); setMsg('plugin-msg', r.error || 'Failed', 'error'); }
+    btn.disabled = false;
+  }
+
+  async function skillsInstall() {
+    const btn = document.getElementById('skills-install-btn');
+    btn.disabled = true; setDot('skills-dot', 'amber'); setMsg('skills-msg', 'Installing skills...', '');
+    const r = await window.electronAPI.skillsInstall();
+    if (r.success) {
+      setDot('skills-dot', 'green');
+      setMsg('skills-msg', 'Installed ' + r.installed.length + ' skills to ~/.claude/skills', 'success');
+      btn.textContent = 'Reinstall skills';
+    } else {
+      setDot('skills-dot', 'red');
+      // Report which skills failed, not just that something did.
+      const detail = r.failed && r.failed.length ? r.failed.map(f => f.dir).join(', ') : (r.error || 'Failed');
+      setMsg('skills-msg', 'Failed: ' + detail, 'error');
+    }
+    btn.disabled = false;
+  }
+
+  async function mcpInstall() {
+    const btn = document.getElementById('mcp-install-btn');
+    btn.disabled = true; setDot('mcp-dot', 'amber'); setMsg('mcp-msg', 'Installing...', '');
+    const r = await window.electronAPI.mcpInstall();
+    if (r.success) { setDot('mcp-dot', 'green'); setMsg('mcp-msg', 'Installed', 'success'); toggle('mcp-uninstall-btn', 'mcp-install-btn'); }
+    else { setDot('mcp-dot', 'red'); setMsg('mcp-msg', r.error || 'Failed', 'error'); btn.disabled = false; }
+  }
+
+  async function mcpUninstall() {
+    const btn = document.getElementById('mcp-uninstall-btn');
+    btn.disabled = true; setDot('mcp-dot', 'amber'); setMsg('mcp-msg', 'Uninstalling...', '');
+    const r = await window.electronAPI.mcpUninstall();
+    if (r.success) { setDot('mcp-dot', 'red'); setMsg('mcp-msg', 'Removed', 'success'); toggle('mcp-install-btn', 'mcp-uninstall-btn'); document.getElementById('mcp-install-btn').disabled = false; }
+    else { setDot('mcp-dot', 'green'); setMsg('mcp-msg', r.error || 'Failed', 'error'); btn.disabled = false; }
+  }
+
+  // ─── Terminal ─────────────────────────────────────────────────────────
+
+  let term = null, fitAddon = null;
+
+  async function openClaude() {
+    const overlay = document.getElementById('terminal-overlay');
+    const container = document.getElementById('terminal-container');
+    overlay.classList.add('visible');
+    if (term) { term.dispose(); term = null; }
+    container.innerHTML = '';
+
+    term = new Terminal({ cursorBlink: true, fontSize: 14, theme: { background: '#0d0d1a', foreground: '#e0e0e0', cursor: '#00b4d8' }});
+    fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(container);
+    setTimeout(() => fitAddon.fit(), 50);
+
+    try {
+      const skipPerms = document.getElementById('skip-perms').checked;
+      const r = await window.electronAPI.ptySpawn(term.cols, term.rows, skipPerms);
+      if (!r.success) { term.write('\r\n\x1b[31mFailed: ' + (r.error || '') + '\x1b[0m\r\n'); return; }
+    } catch (e) { term.write('\r\n\x1b[31m' + e.message + '\x1b[0m\r\n'); return; }
+
+    term.focus();
+    term.onData((d) => window.electronAPI.ptyWrite(d));
+    term.onResize(({ cols, rows }) => window.electronAPI.ptyResize(cols, rows));
+    window.electronAPI.onPtyData((d) => { if (term) term.write(d); });
+    window.electronAPI.onPtyExit(() => { if (term) term.write('\r\n\x1b[90m[process exited]\x1b[0m\r\n'); });
+    new ResizeObserver(() => { if (fitAddon) fitAddon.fit(); }).observe(container);
+  }
+
+  function closeClaude() {
+    document.getElementById('terminal-overlay').classList.remove('visible');
+    window.electronAPI.ptyKill();
+    if (term) { term.dispose(); term = null; fitAddon = null; }
+  }
+
+  // ─── Init ─────────────────────────────────────────────────────────────
+
+  loadProjects();
+  loadSetupStatus();
+
+</script>
+<script src="update-ui.js"></script>
+</body>
+</html>

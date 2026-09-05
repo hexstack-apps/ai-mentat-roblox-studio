@@ -1,0 +1,117 @@
+{
+  "name": "ai-mentat-roblox-studio",
+  "version": "1.1.0",
+  "description": "Hexstack Mentat RBXS \u2014 Roblox Studio development desktop app with Claude Code MCP + Rojo",
+  "author": "HexStack",
+  "license": "MIT",
+  "main": "electron-main.bundle.js",
+  "shop_link": "https://hexstack.app/mentat-rbxs/",
+  "itch_io": {
+    "user": "hexstack-app",
+    "game": "mentat-rbxs"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "run": "npm run setup && node sdk/utils/bundle-electron.js && electron electron-main.bundle.js",
+    "build": "node scripts/build-app.js",
+    "check": "npm run build && node scripts/start-built.js",
+    "gui": "node sdk/utils/bundle-electron.js && electron electron-main.bundle.js",
+    "test": "node --test 'test/*.js'",
+    "test:mutation": "sh test/discriminates.sh",
+    "bundle": "node sdk/utils/bundle-electron.js",
+    "build:mac": "node sdk/utils/bundle-electron.js && electron-builder --mac dmg --universal -c.mac.identity=null",
+    "build:mac:signed": "node sdk/utils/bundle-electron.js && APPLE_KEYCHAIN_PROFILE=CCO-notary electron-builder --mac dmg --universal",
+    "build:mac:store": "node sdk/utils/bundle-electron.js && electron-builder --mac mas",
+    "build:win": "node sdk/utils/bundle-electron.js && electron-builder --win msi",
+    "build:win:store": "node sdk/utils/bundle-electron.js && electron-builder --win msi -c.msi.artifactName=\"mentat-rbxs-${version}_store.msi\"",
+    "build:linux": "node sdk/utils/bundle-electron.js && electron-builder --linux deb",
+    "build:all": "npm run build:mac && npm run build:mac:store && npm run build:win && npm run build:linux",
+    "dist": "npm run build:all",
+    "publish": "node sdk/logic/publish.js --app=mentat-rbxs",
+    "release": "node sdk/logic/release.js"
+  },
+  "signing": {
+    "appName": "Hexstack Mentat RBXS",
+    "bundleId": "app.hexstack.mentat-rbxs",
+    "minMacOS": "10.15",
+    "developerIdApplication": "Developer ID Application: Roman Chuvilev (A646WU4GA4)",
+    "notaryProfile": "CCO-notary"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2"
+  },
+  "build": {
+    "appId": "app.hexstack.ai-mentat-roblox-studio",
+    "productName": "ai-mentat-roblox-studio",
+    "publish": {
+      "provider": "generic",
+      "url": ""
+    },
+    "directories": {
+      "output": "/.hexstack-app/ai-mentat-roblox-studio"
+    },
+    "artifactName": "mentat-rbxs-${version}.${ext}",
+    "electronVersion": "44.0.0",
+    "asarUnpack": [
+      "pty-helper.py",
+      "skills/**/*"
+    ],
+    "files": [
+      "electron-main.bundle.js",
+      "preload.js",
+      "app.html",
+      "app.css",
+      "update-ui.js",
+      "pty-helper.py",
+      "skills/",
+      "icon.png",
+      "demo-gif/",
+      "vendor/",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "icon.png",
+      "category": "public.app-category.developer-tools",
+      "identity": "Roman Chuvilev (A646WU4GA4)",
+      "notarize": true,
+      "hardenedRuntime": true,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
+      "target": [
+        "dmg"
+      ]
+    },
+    "mas": {
+      "identity": "3rd Party Mac Developer Application: Roman Chuvilev (A646WU4GA4)",
+      "provisioningProfile": "./certs/mas-mentat-rbxs.provisionprofile",
+      "entitlements": "entitlements.mas.plist",
+      "entitlementsInherit": "entitlements.mas.inherit.plist"
+    },
+    "win": {
+      "icon": "icon.png",
+      "target": [
+        "msi"
+      ]
+    },
+    "msi": {
+      "artifactName": "mentat-rbxs-${version}.msi"
+    },
+    "linux": {
+      "icon": "icon.png",
+      "target": [
+        "deb"
+      ],
+      "category": "Development"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hexstack-apps/ai-mentat-roblox-studio.git"
+  },
+  "productName": "ai-mentat-roblox-studio"
+}
