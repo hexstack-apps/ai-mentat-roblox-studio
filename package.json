@@ -2,9 +2,8 @@
   "name": "ai-mentat-roblox-studio",
   "version": "1.1.0",
   "description": "Hexstack Mentat RBXS \u2014 Roblox Studio development desktop app with Claude Code MCP + Rojo",
-  "author": "HexStack",
-  "license": "MIT",
   "main": "electron-main.bundle.js",
+  "productName": "ai-mentat-roblox-studio",
   "shop_link": "https://hexstack.app/mentat-rbxs/",
   "itch_io": {
     "user": "hexstack-app",
@@ -29,6 +28,20 @@
     "dist": "npm run build:all",
     "publish": "node sdk/logic/publish.js --app=mentat-rbxs",
     "release": "node sdk/logic/release.js"
+  },
+  "keywords": [
+    "roblox",
+    "rojo",
+    "studio",
+    "mcp",
+    "electron",
+    "mentat"
+  ],
+  "author": "HexStack",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.16",
+    "npm": ">=10.0.0"
   },
   "signing": {
     "appName": "Hexstack Mentat RBXS",
@@ -58,20 +71,18 @@
     "artifactName": "mentat-rbxs-${version}.${ext}",
     "electronVersion": "44.0.0",
     "asarUnpack": [
-      "pty-helper.py",
-      "skills/**/*"
+      "sdk/utils/pty-helper.py"
     ],
     "files": [
       "electron-main.bundle.js",
       "preload.js",
       "app.html",
       "app.css",
-      "update-ui.js",
-      "pty-helper.py",
-      "skills/",
       "icon.png",
-      "demo-gif/",
-      "vendor/",
+      "sdk/vendor/",
+      "sdk/ui/base.css",
+      "sdk/ui/update-bar.js",
+      "sdk/utils/pty-helper.py",
       "package.json"
     ],
     "mac": {
@@ -80,8 +91,8 @@
       "identity": "Roman Chuvilev (A646WU4GA4)",
       "notarize": true,
       "hardenedRuntime": true,
-      "entitlements": "entitlements.mac.plist",
-      "entitlementsInherit": "entitlements.mac.plist",
+      "entitlements": "sdk/build/entitlements.mac.plist",
+      "entitlementsInherit": "sdk/build/entitlements.mac.plist",
       "target": [
         "dmg"
       ]
@@ -89,8 +100,8 @@
     "mas": {
       "identity": "3rd Party Mac Developer Application: Roman Chuvilev (A646WU4GA4)",
       "provisioningProfile": "./certs/mas-mentat-rbxs.provisionprofile",
-      "entitlements": "entitlements.mas.plist",
-      "entitlementsInherit": "entitlements.mas.inherit.plist"
+      "entitlements": "sdk/build/entitlements.mas.plist",
+      "entitlementsInherit": "sdk/build/entitlements.mas.inherit.plist"
     },
     "win": {
       "icon": "icon.png",
@@ -112,6 +123,5 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hexstack-apps/ai-mentat-roblox-studio.git"
-  },
-  "productName": "ai-mentat-roblox-studio"
+  }
 }
