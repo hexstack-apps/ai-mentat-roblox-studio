@@ -1,0 +1,23 @@
+{
+  "updatesRepoUrl": "",
+  "butlerApiKeyEnvVar": "BUTLER_API_KEY",
+  "apps": {
+    "mentat-rbxs": {
+      "dir": ".",
+      "productName": "Hexstack Mentat RBXS",
+      "itchIo": {
+        "user": "hexstack-app",
+        "game": "mentat-rbxs",
+        "channels": {
+          "mac": "osx",
+          "win": "windows",
+          "linux": "linux"
+        }
+      },
+      "updatesRepo": {
+        "subdir": "mentat-rbxs",
+        "feedUrl": ""
+      }
+    }
+  }
+}
